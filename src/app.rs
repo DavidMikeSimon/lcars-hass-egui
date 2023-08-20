@@ -1,13 +1,68 @@
-pub struct TemplateApp {
+use std::{time::Duration, env, sync::Arc};
+
+use rumqttc::{MqttOptions, AsyncClient, QoS, EventLoop};
+use tokio::{task, runtime, sync::mpsc};
+
+pub struct LcarsApp {
+    runtime: runtime::Runtime,
+    
+    message_receiver: mpsc::Receiver<String>,
+    client: Arc<AsyncClient>,
+
     // Example stuff:
     label: String,
-
     value: f32,
 }
 
-impl Default for TemplateApp {
+impl Default for LcarsApp {
     fn default() -> Self {
+        let runtime = runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+
+        // TODO: Use unique id
+        let mut mqtt_options = MqttOptions::new("lcars", "mosquitto.sinclair.pipsimon.com", 1883);
+        mqtt_options.set_credentials(
+            "lcars",
+            env::var("MQTT_PASS").unwrap()
+        );
+        mqtt_options.set_keep_alive(Duration::from_secs(5));
+
+        let (client, mut event_loop) = AsyncClient::new(
+            mqtt_options,
+            10
+        );
+
+        let client = Arc::new(client);
+
+        let (sender, receiver) = mpsc::channel::<String>(1000);
+
+        {
+            let client = client.as_ref().clone();
+            runtime.spawn(async move {
+                client.subscribe("homeassistant_statestream/#", QoS::AtMostOnce).await.unwrap();
+            });
+        }
+
+        {
+            let sender = sender.clone();
+            runtime.spawn(async move {
+                loop {
+                    match event_loop.poll().await {
+                        Err(e) => {
+                            println!("CONNECTION ERROR {:?}", e);
+                            break;
+                        },
+                        Ok(m) => sender.send(format!("{:?}", m)).await.unwrap(),
+                    }
+                }
+            });
+        }
+
         Self {
+            runtime,
+
+            message_receiver: receiver,
+            client: client,
+
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
@@ -15,7 +70,7 @@ impl Default for TemplateApp {
     }
 }
 
-impl TemplateApp {
+impl LcarsApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -25,11 +80,24 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for LcarsApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { label, value } = self;
+        let Self { label, value, .. } = self;
+
+        loop {
+            match self.message_receiver.try_recv() {
+                Err(mpsc::error::TryRecvError::Empty) => break,
+                Err(_) => {
+                    println!("WEIRD ERROR");
+                    break
+                },
+                Ok(s) => {
+                    println!("GOT {}", s);
+                }
+            }
+        }
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
