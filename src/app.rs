@@ -1,17 +1,17 @@
-use std::{time::Duration, env, sync::Arc};
+use std::{time::Duration, env, sync::Arc, sync::RwLock, collections::HashMap};
 
-use rumqttc::{MqttOptions, AsyncClient, QoS, EventLoop};
-use tokio::{task, runtime, sync::mpsc};
+use rumqttc::{MqttOptions, AsyncClient, QoS, Event, Packet};
+use tokio::{runtime};
+
+#[derive(Default)]
+pub struct AppState {
+    device_states: HashMap<String, String>,
+}
 
 pub struct LcarsApp {
     runtime: runtime::Runtime,
-    
-    message_receiver: mpsc::Receiver<String>,
+    state: Arc<RwLock<AppState>>,
     client: Arc<AsyncClient>,
-
-    // Example stuff:
-    label: String,
-    value: f32,
 }
 
 impl Default for LcarsApp {
@@ -31,9 +31,9 @@ impl Default for LcarsApp {
             10
         );
 
-        let client = Arc::new(client);
+        let state = Arc::new(RwLock::new(AppState::default()));
 
-        let (sender, receiver) = mpsc::channel::<String>(1000);
+        let client = Arc::new(client);
 
         {
             let client = client.as_ref().clone();
@@ -43,7 +43,7 @@ impl Default for LcarsApp {
         }
 
         {
-            let sender = sender.clone();
+            let state = state.clone();
             runtime.spawn(async move {
                 loop {
                     match event_loop.poll().await {
@@ -51,7 +51,16 @@ impl Default for LcarsApp {
                             println!("CONNECTION ERROR {:?}", e);
                             break;
                         },
-                        Ok(m) => sender.send(format!("{:?}", m)).await.unwrap(),
+                        Ok(Event::Incoming(Packet::Publish(p))) => {
+                            println!("{:?}", &p);
+                            if p.topic.ends_with("/state") {
+                                let mut state = state.write().unwrap();
+                                // FIXME: Too many copies happening here
+                                state.device_states.insert(p.topic, String::from_utf8(p.payload.to_vec()).unwrap());
+                            }
+                        },
+                        Ok(Event::Incoming(_)) => (),
+                        Ok(Event::Outgoing(_)) => (),
                     }
                 }
             });
@@ -59,13 +68,8 @@ impl Default for LcarsApp {
 
         Self {
             runtime,
-
-            message_receiver: receiver,
+            state,
             client: client,
-
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
         }
     }
 }
@@ -81,88 +85,17 @@ impl LcarsApp {
 }
 
 impl eframe::App for LcarsApp {
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { label, value, .. } = self;
-
-        loop {
-            match self.message_receiver.try_recv() {
-                Err(mpsc::error::TryRecvError::Empty) => break,
-                Err(_) => {
-                    println!("WEIRD ERROR");
-                    break
-                },
-                Ok(s) => {
-                    println!("GOT {}", s);
-                }
-            }
-        }
-
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        _frame.close();
-                    }
-                });
-            });
-        });
-
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
-
-            ui.add(egui::Slider::new(value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                *value += 1.0;
-            }
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.label("powered by ");
-                    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-                    ui.label(" and ");
-                    ui.hyperlink_to(
-                        "eframe",
-                        "https://github.com/emilk/egui/tree/master/crates/eframe",
-                    );
-                    ui.label(".");
-                });
-            });
-        });
-
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-
+            let state = self.state.read().unwrap();
             ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
-            egui::warn_if_debug_build(ui);
-        });
 
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally choose either panels OR windows.");
-            });
-        }
+            // FIXME Sorting every frame
+            let mut keys: Vec<&String> = state.device_states.keys().collect();
+            keys.sort();
+            for key in keys {
+                ui.label(format!("{}: {}", key, state.device_states.get(key).unwrap()));
+            }
+        });
     }
 }
