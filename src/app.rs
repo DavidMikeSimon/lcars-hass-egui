@@ -1,7 +1,7 @@
-use std::{time::Duration, env, sync::Arc, sync::RwLock, collections::HashMap};
+use std::{time::Duration, env, sync::Arc, collections::HashMap};
 
 use rumqttc::{MqttOptions, AsyncClient, QoS, Event, Packet};
-use tokio::{runtime};
+use tokio::{runtime, sync::mpsc};
 
 #[derive(Default)]
 pub struct AppState {
@@ -10,12 +10,14 @@ pub struct AppState {
 
 pub struct LcarsApp {
     runtime: runtime::Runtime,
-    state: Arc<RwLock<AppState>>,
+    state: AppState,
     client: Arc<AsyncClient>,
+    event_receiver: mpsc::Receiver<Event>,
 }
 
-impl Default for LcarsApp {
-    fn default() -> Self {
+impl LcarsApp {
+    /// Called once before the first frame.
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let runtime = runtime::Builder::new_multi_thread().enable_all().build().unwrap();
 
         // TODO: Use unique id
@@ -31,9 +33,8 @@ impl Default for LcarsApp {
             10
         );
 
-        let state = Arc::new(RwLock::new(AppState::default()));
-
         let client = Arc::new(client);
+        let (sender, receiver) = mpsc::channel::<Event>(1000);
 
         {
             let client = client.as_ref().clone();
@@ -43,24 +44,20 @@ impl Default for LcarsApp {
         }
 
         {
-            let state = state.clone();
+            let context = cc.egui_ctx.clone();
             runtime.spawn(async move {
                 loop {
                     match event_loop.poll().await {
                         Err(e) => {
+                            // TODO Set some kind of flag? And reset it on next Ok?
                             println!("CONNECTION ERROR {:?}", e);
                             break;
                         },
-                        Ok(Event::Incoming(Packet::Publish(p))) => {
-                            println!("{:?}", &p);
-                            if p.topic.ends_with("/state") {
-                                let mut state = state.write().unwrap();
-                                // FIXME: Too many copies happening here
-                                state.device_states.insert(p.topic, String::from_utf8(p.payload.to_vec()).unwrap());
-                            }
+                        Ok(event) => {
+                            sender.send(event).await.unwrap();
+                            context.request_repaint();
+                            // TODO: Only request repaint after a batch of events
                         },
-                        Ok(Event::Incoming(_)) => (),
-                        Ok(Event::Outgoing(_)) => (),
                     }
                 }
             });
@@ -68,33 +65,33 @@ impl Default for LcarsApp {
 
         Self {
             runtime,
-            state,
+            state: AppState::default(),
             client: client,
+            event_receiver: receiver,
         }
-    }
-}
-
-impl LcarsApp {
-    /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        Default::default()
     }
 }
 
 impl eframe::App for LcarsApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        while let Ok(event) = self.event_receiver.try_recv() {
+            if let Event::Incoming(Packet::Publish(p)) = event {
+                println!("{:?}", &p);
+                if p.topic.ends_with("/state") {
+                    // FIXME: Too many copies happening here
+                    self.state.device_states.insert(p.topic, String::from_utf8(p.payload.to_vec()).unwrap());
+                }
+            }
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            let state = self.state.read().unwrap();
             ui.heading("eframe template");
 
             // FIXME Sorting every frame
-            let mut keys: Vec<&String> = state.device_states.keys().collect();
+            let mut keys: Vec<&String> = self.state.device_states.keys().collect();
             keys.sort();
             for key in keys {
-                ui.label(format!("{}: {}", key, state.device_states.get(key).unwrap()));
+                ui.label(format!("{}: {}", key, self.state.device_states.get(key).unwrap()));
             }
         });
     }
