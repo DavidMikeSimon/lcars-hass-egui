@@ -1,6 +1,9 @@
 use std::{collections::HashMap, env, sync::Arc, time::Duration};
 
-use egui::{FontData, FontDefinitions};
+use egui::{
+    Color32, Context, FontData, FontDefinitions, FontFamily, Key, Rect, Rounding, Sense, Stroke,
+    Vec2, Visuals, Ui,
+};
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use tokio::{runtime, sync::mpsc};
 
@@ -16,7 +19,7 @@ pub struct LcarsApp {
     event_receiver: mpsc::Receiver<Event>,
 }
 
-fn configure_fonts(ctx: &egui::Context) {
+fn configure_fonts(ctx: &Context) {
     let mut font_definitions = FontDefinitions::empty();
     font_definitions.font_data.insert(
         "LCARSGTJ3".to_owned(),
@@ -24,15 +27,15 @@ fn configure_fonts(ctx: &egui::Context) {
     );
     font_definitions
         .families
-        .get_mut(&egui::FontFamily::Proportional)
+        .get_mut(&FontFamily::Proportional)
         .unwrap()
         .insert(0, "LCARSGTJ3".to_owned());
     ctx.set_fonts(font_definitions);
 }
 
-fn configure_text_styles(ctx: &egui::Context) {
-    use egui::FontFamily::{Monospace, Proportional};
+fn configure_text_styles(ctx: &Context) {
     use egui::{FontId, TextStyle};
+    use FontFamily::{Monospace, Proportional};
 
     let mut style = (*ctx.style()).clone();
     style.text_styles = [
@@ -46,17 +49,24 @@ fn configure_text_styles(ctx: &egui::Context) {
     ctx.set_style(style);
 }
 
+fn configure_visuals(ctx: &Context) {
+    let mut visuals = Visuals::default();
+    visuals.panel_fill = Color32::BLACK;
+    ctx.set_visuals(visuals);
+}
+
 impl LcarsApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         configure_fonts(&cc.egui_ctx);
         configure_text_styles(&cc.egui_ctx);
+        configure_visuals(&cc.egui_ctx);
 
         let runtime = runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
 
-        // TODO: Use unique id
+        // TODO: Use random unique id, or id from env var
         let mut mqtt_options = MqttOptions::new("lcars", "mosquitto.sinclair.pipsimon.com", 1883);
         mqtt_options.set_credentials("lcars", env::var("MQTT_PASS").unwrap());
         mqtt_options.set_keep_alive(Duration::from_secs(5));
@@ -105,8 +115,88 @@ impl LcarsApp {
     }
 }
 
+struct LcarsPanel {
+    bar_color: Color32,
+    rounding: f32,
+    sidebar_width: f32,
+    header_height: f32,
+    footer_height: f32,
+}
+
+impl Default for LcarsPanel {
+    fn default() -> Self {
+        Self {
+            bar_color: Color32::DARK_BLUE,
+            rounding: 30.0, // FIXME Doesn't seem to be applying correctly
+            sidebar_width: 20.0,
+            header_height: 50.0,
+            footer_height: 10.0,
+        }
+    }
+}
+
+impl LcarsPanel {
+    fn show(&self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
+        let default_item_spacing = ui.spacing().item_spacing;
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+
+        ui.horizontal(|ui| {
+            {
+                let (response, painter) =
+                    ui.allocate_painter(Vec2::new(self.sidebar_width, 300.0), Sense::click());
+                painter.rect_filled(
+                    response.rect,
+                    Rounding {
+                        nw: self.rounding,
+                        sw: self.rounding,
+                        ..Rounding::default()
+                    },
+                    self.bar_color,
+                );
+            }
+
+            ui.vertical(|ui| {
+                {
+                    let (response, painter) =
+                        ui.allocate_painter(Vec2::new(500.0, self.header_height), Sense::click());
+                    painter.rect_filled(response.rect, Rounding::none(), self.bar_color);
+                }
+
+                ui.add_space(default_item_spacing.y);
+
+                ui.horizontal(|ui| {
+                    ui.add_space(default_item_spacing.x);
+
+                    ui.spacing_mut().item_spacing = default_item_spacing;
+
+                    ui.vertical(|ui| {
+                        add_contents(ui);
+                    });
+
+                    ui.spacing_mut().item_spacing = Vec2::ZERO;
+                });
+
+                {
+                    let (response, painter) = ui.allocate_painter(
+                        Vec2::new(500.0, ui.available_height()),
+                        Sense::click(),
+                    );
+                    painter.rect_filled(
+                        Rect::from_center_size(
+                            response.rect.center_bottom(),
+                            Vec2::new(500.0, self.footer_height),
+                        ),
+                        Rounding::none(),
+                        self.bar_color,
+                    );
+                }
+            });
+        });
+    }
+}
+
 impl eframe::App for LcarsApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         while let Ok(event) = self.event_receiver.try_recv() {
             if let Event::Incoming(Packet::Publish(p)) = event {
                 if p.topic.ends_with("/state") {
@@ -118,22 +208,17 @@ impl eframe::App for LcarsApp {
                 }
             }
         }
-        
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
             frame.close();
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // FIXME Sorting every frame
-            let mut keys: Vec<&String> = self.state.device_states.keys().collect();
-            keys.sort();
-            for key in keys {
-                ui.label(format!(
-                    "{}: {}",
-                    key,
-                    self.state.device_states.get(key).unwrap()
-                ));
-            }
+            LcarsPanel::default().show(ui, |ui| {
+                ui.label("WAT 1");
+                ui.label("WAT 2");
+                ui.label("WAT 3");
+            });
         });
     }
 }
