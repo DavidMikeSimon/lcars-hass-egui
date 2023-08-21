@@ -4,12 +4,17 @@
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+    use egui::Vec2;
+
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
-    let native_options = eframe::NativeOptions::default();
+    let mut native_options = eframe::NativeOptions::default();
+    native_options.initial_window_size = Some(Vec2::new(1024.0, 600.0));
+    native_options.resizable = false;
+    native_options.decorated = false;
 
     eframe::run_native(
-        "eframe template",
+        "LCARS HASS",
         native_options,
         Box::new(|cc| Box::new(lcars_hass_egui::LcarsApp::new(cc))),
     )
