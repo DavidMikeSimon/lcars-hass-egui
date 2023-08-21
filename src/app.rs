@@ -41,9 +41,8 @@ fn configure_text_styles(ctx: &Context) {
     style.text_styles = [
         (TextStyle::Heading, FontId::new(36.0, Proportional)),
         (TextStyle::Body, FontId::new(28.0, Proportional)),
-        (TextStyle::Monospace, FontId::new(12.0, Monospace)),
-        (TextStyle::Button, FontId::new(12.0, Proportional)),
-        (TextStyle::Small, FontId::new(8.0, Proportional)),
+        (TextStyle::Button, FontId::new(28.0, Proportional)),
+        (TextStyle::Small, FontId::new(14.0, Proportional)),
     ]
     .into();
     ctx.set_style(style);
@@ -128,7 +127,7 @@ impl Default for LcarsPanel {
         Self {
             bar_color: Color32::DARK_BLUE,
             rounding: 30.0, // FIXME Doesn't seem to be applying correctly
-            sidebar_width: 20.0,
+            sidebar_width: 90.0,
             header_height: 50.0,
             footer_height: 10.0,
         }
@@ -218,9 +217,10 @@ impl eframe::App for LcarsApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             LcarsPanel::default().show(ui, |ui| {
-                ui.label("WAT 1");
-                ui.label("WAT 2");
-                ui.label("WAT 3");
+                ui.button("WAT 1");
+                ui.button("WAT 2");
+                ui.button("WAT 3");
+                ui.button("WAT 4");
             });
         });
     }
