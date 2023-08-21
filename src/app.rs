@@ -106,7 +106,7 @@ impl LcarsApp {
 }
 
 impl eframe::App for LcarsApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         while let Ok(event) = self.event_receiver.try_recv() {
             if let Event::Incoming(Packet::Publish(p)) = event {
                 if p.topic.ends_with("/state") {
@@ -117,6 +117,10 @@ impl eframe::App for LcarsApp {
                     );
                 }
             }
+        }
+        
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            frame.close();
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
