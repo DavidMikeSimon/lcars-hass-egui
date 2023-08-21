@@ -140,10 +140,13 @@ impl LcarsPanel {
         let default_item_spacing = ui.spacing().item_spacing;
         ui.spacing_mut().item_spacing = Vec2::ZERO;
 
+        let height = 300.0;
+        let width = 500.0;
+
         ui.horizontal(|ui| {
             {
                 let (response, painter) =
-                    ui.allocate_painter(Vec2::new(self.sidebar_width, 300.0), Sense::click());
+                    ui.allocate_painter(Vec2::new(self.sidebar_width, height), Sense::click());
                 painter.rect_filled(
                     response.rect,
                     Rounding {
@@ -158,7 +161,7 @@ impl LcarsPanel {
             ui.vertical(|ui| {
                 {
                     let (response, painter) =
-                        ui.allocate_painter(Vec2::new(500.0, self.header_height), Sense::click());
+                        ui.allocate_painter(Vec2::new(width, self.header_height), Sense::click());
                     painter.rect_filled(response.rect, Rounding::none(), self.bar_color);
                 }
 
@@ -178,13 +181,13 @@ impl LcarsPanel {
 
                 {
                     let (response, painter) = ui.allocate_painter(
-                        Vec2::new(500.0, ui.available_height()),
+                        Vec2::new(width, ui.available_height()),
                         Sense::click(),
                     );
                     painter.rect_filled(
                         Rect::from_center_size(
                             response.rect.center_bottom(),
-                            Vec2::new(500.0, self.footer_height),
+                            Vec2::new(width, self.footer_height),
                         ),
                         Rounding::none(),
                         self.bar_color,
