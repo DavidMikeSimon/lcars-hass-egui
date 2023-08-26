@@ -39,9 +39,9 @@ fn configure_text_styles(ctx: &Context) {
 
     let mut style = (*ctx.style()).clone();
     style.text_styles = [
-        (TextStyle::Heading, FontId::new(36.0, Proportional)),
-        (TextStyle::Body, FontId::new(28.0, Proportional)),
-        (TextStyle::Button, FontId::new(28.0, Proportional)),
+        (TextStyle::Heading, FontId::new(64.0, Proportional)),
+        (TextStyle::Body, FontId::new(36.0, Proportional)),
+        (TextStyle::Button, FontId::new(36.0, Proportional)),
         (TextStyle::Small, FontId::new(14.0, Proportional)),
     ]
     .into();
@@ -139,8 +139,8 @@ impl LcarsPanel {
         let default_item_spacing = ui.spacing().item_spacing;
         ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-        let height = 300.0;
-        let width = 500.0;
+        let width = 800.0;
+        let height = 550.0;
 
         ui.horizontal(|ui| {
             {
