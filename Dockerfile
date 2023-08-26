@@ -6,24 +6,28 @@ WORKDIR /root/workdir
 
 RUN case "$TARGETARCH" in \
     "386") \
-        export RUST_TARGET="i686-unknown-linux-gnu" \
+        export RUST_TARGET="i686-unknown-linux-gnu" GCC_PKG="gcc-aarch64-linux-gnu" \
     ;; \
     "amd64") \
-        export RUST_TARGET="x86_64-unknown-linux-gnu" \
+        export RUST_TARGET="x86_64-unknown-linux-gnu" GCC_PKG="gcc-x86-64-linux-gnu" \
     ;; \
     "arm64") \
-        export RUST_TARGET="aarch64-unknown-linux-gnu" \
+        export RUST_TARGET="aarch64-unknown-linux-gnu" GCC_PKG="gcc-aarch64-linux-gnu" \
     ;; \
     *) \
         echo "Doesn't support $TARGETARCH architecture" \
         exit 1 \
     ;; \
     esac \
+    && apt-get update \
+    && apt-get install -y $GCC_PKG \
+    && apt-get clean \
     && echo $RUST_TARGET > /root/rust_target
 
 RUN rustup target add "$(cat /root/rust_target)"
 
 COPY Cargo.toml Cargo.lock .
+COPY .cargo ./.cargo
 RUN \
     mkdir /root/workdir/src && \
     echo 'fn main() {}' > /root/workdir/src/main.rs && \
