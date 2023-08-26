@@ -1,8 +1,8 @@
 use std::{collections::HashMap, env, sync::Arc, time::Duration};
 
 use egui::{
-    Color32, Context, FontData, FontDefinitions, FontFamily, Key, Rect, Rounding, Sense, Stroke,
-    Vec2, Visuals, Ui,
+    Button, Color32, Context, FontData, FontDefinitions, FontFamily, Key, Rect, Rounding, Sense,
+    Stroke, Ui, Vec2, Visuals,
 };
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use tokio::{runtime, sync::mpsc};
@@ -35,7 +35,7 @@ fn configure_fonts(ctx: &Context) {
 
 fn configure_text_styles(ctx: &Context) {
     use egui::{FontId, TextStyle};
-    use FontFamily::{Monospace, Proportional};
+    use FontFamily::Proportional;
 
     let mut style = (*ctx.style()).clone();
     style.text_styles = [
@@ -179,10 +179,8 @@ impl LcarsPanel {
                 });
 
                 {
-                    let (response, painter) = ui.allocate_painter(
-                        Vec2::new(width, ui.available_height()),
-                        Sense::click(),
-                    );
+                    let (response, painter) = ui
+                        .allocate_painter(Vec2::new(width, ui.available_height()), Sense::click());
                     painter.rect_filled(
                         Rect::from_center_size(
                             response.rect.center_bottom(),
@@ -217,10 +215,35 @@ impl eframe::App for LcarsApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             LcarsPanel::default().show(ui, |ui| {
-                ui.button("WAT 1");
-                ui.button("WAT 2");
-                ui.button("WAT 3");
-                ui.button("WAT 4");
+                let sleep_sound_state = self
+                    .state
+                    .device_states
+                    .get("/switch/terminal1_sleepy_sounds_playing/state")
+                    .map(|payload| match &**payload {
+                        "on" => true,
+                        _ => false,
+                    });
+                let btn = Button::new("SLP SND");
+                let btn = match sleep_sound_state {
+                    Some(true) => btn.fill(Color32::GREEN),
+                    Some(false) => btn.fill(Color32::DARK_BLUE),
+                    _ => btn,
+                };
+                let btn_response = ui.add_enabled(sleep_sound_state.is_some(), btn);
+                if btn_response.clicked() {
+                    let client = self.client.as_ref().clone();
+                    self.runtime.spawn(async move {
+                        client.publish(
+                            "homeassistant_cmd/switch/terminal1_sleepy_sounds_playing",
+                            QoS::AtLeastOnce,
+                            false,
+                            match sleep_sound_state {
+                                Some(false) => "on",
+                                _ => "off",
+                            },
+                        ).await.unwrap();
+                    });
+                }
             });
         });
     }
