@@ -39,10 +39,10 @@ fn configure_text_styles(ctx: &Context) {
 
     let mut style = (*ctx.style()).clone();
     style.text_styles = [
-        (TextStyle::Heading, FontId::new(64.0, Proportional)),
-        (TextStyle::Body, FontId::new(36.0, Proportional)),
-        (TextStyle::Button, FontId::new(36.0, Proportional)),
-        (TextStyle::Small, FontId::new(14.0, Proportional)),
+        (TextStyle::Heading, FontId::new(128.0, Proportional)),
+        (TextStyle::Body, FontId::new(72.0, Proportional)),
+        (TextStyle::Button, FontId::new(72.0, Proportional)),
+        (TextStyle::Small, FontId::new(36.0, Proportional)),
     ]
     .into();
     ctx.set_style(style);
@@ -133,8 +133,8 @@ impl Default for LcarsPanel {
             bar_color: GOLDEN_TANOI,
             rounding: 30.0, // FIXME Doesn't seem to be applying correctly
             sidebar_width: 90.0,
-            header_height: 50.0,
-            footer_height: 10.0,
+            header_height: 150.0,
+            footer_height: 30.0,
         }
     }
 }
@@ -144,8 +144,8 @@ impl LcarsPanel {
         let default_item_spacing = ui.spacing().item_spacing;
         ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-        let width = 800.0;
-        let height = 550.0;
+        let width = 1600.0;
+        let height = 1050.0;
 
         ui.horizontal(|ui| {
             {
@@ -169,10 +169,10 @@ impl LcarsPanel {
                     painter.rect_filled(response.rect, Rounding::none(), self.bar_color);
                 }
 
-                ui.add_space(20.0);
+                ui.add_space(50.0);
 
                 ui.horizontal(|ui| {
-                    ui.add_space(20.0);
+                    ui.add_space(50.0);
 
                     ui.spacing_mut().item_spacing = default_item_spacing;
 
@@ -228,7 +228,7 @@ impl eframe::App for LcarsApp {
                         "on" => true,
                         _ => false,
                     });
-                let btn = Button::new("      SLP SND").min_size(Vec2::new(200.0, 50.0)).rounding(30.0);
+                let btn = Button::new("    SLP SND").min_size(Vec2::new(400.0, 0.0)).rounding(30.0);
                 let btn = match sleep_sound_state {
                     Some(true) => btn.fill(RUST),
                     Some(false) => btn.fill(GRAY),

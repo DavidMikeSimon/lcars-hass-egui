@@ -42,7 +42,8 @@ RUN cargo build --release --target "$(cat /root/rust_target)"
 
 FROM ubuntu:23.04
 RUN apt-get update \
-  && apt-get install -y libx11-6 libxcursor1 libxrandr2 libxi6 libx11-xcb1 \
+  && apt-get install -y \
+  libx11-6 libxcursor1 libxrandr2 libxi6 libx11-xcb1 libgl1 \
   && apt-get clean
 COPY --from=builder /root/workdir/target/*/release/lcars_hass_egui .
 CMD ["./lcars_hass_egui"]
