@@ -2,7 +2,7 @@ use std::{collections::HashMap, env, sync::Arc, time::Duration};
 
 use egui::{
     Button, Color32, Context, FontData, FontDefinitions, FontFamily, Key, Rect, Rounding, Sense,
-    Stroke, Ui, Vec2, Visuals,
+    Ui, Vec2, Visuals,
 };
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use tokio::{runtime, sync::mpsc};
@@ -114,6 +114,11 @@ impl LcarsApp {
     }
 }
 
+static GOLDEN_TANOI: Color32 = Color32::from_rgb(0xff, 0xcc, 0x66);
+static HOPBUSH: Color32 = Color32::from_rgb(0xcc, 0x66, 0x99);
+static RUST: Color32 = Color32::from_rgb(0xbb, 0x44, 0x11);
+static GRAY: Color32 = Color32::from_rgb(0x22, 0x33, 0x44);
+
 struct LcarsPanel {
     bar_color: Color32,
     rounding: f32,
@@ -125,7 +130,7 @@ struct LcarsPanel {
 impl Default for LcarsPanel {
     fn default() -> Self {
         Self {
-            bar_color: Color32::DARK_BLUE,
+            bar_color: GOLDEN_TANOI,
             rounding: 30.0, // FIXME Doesn't seem to be applying correctly
             sidebar_width: 90.0,
             header_height: 50.0,
@@ -164,10 +169,10 @@ impl LcarsPanel {
                     painter.rect_filled(response.rect, Rounding::none(), self.bar_color);
                 }
 
-                ui.add_space(default_item_spacing.y);
+                ui.add_space(20.0);
 
                 ui.horizontal(|ui| {
-                    ui.add_space(default_item_spacing.x);
+                    ui.add_space(20.0);
 
                     ui.spacing_mut().item_spacing = default_item_spacing;
 
@@ -223,25 +228,28 @@ impl eframe::App for LcarsApp {
                         "on" => true,
                         _ => false,
                     });
-                let btn = Button::new("SLP SND");
+                let btn = Button::new("      SLP SND").min_size(Vec2::new(200.0, 50.0)).rounding(30.0);
                 let btn = match sleep_sound_state {
-                    Some(true) => btn.fill(Color32::GREEN),
-                    Some(false) => btn.fill(Color32::DARK_BLUE),
+                    Some(true) => btn.fill(RUST),
+                    Some(false) => btn.fill(GRAY),
                     _ => btn,
                 };
                 let btn_response = ui.add_enabled(sleep_sound_state.is_some(), btn);
                 if btn_response.clicked() {
                     let client = self.client.as_ref().clone();
                     self.runtime.spawn(async move {
-                        client.publish(
-                            "homeassistant_cmd/switch/terminal1_sleepy_sounds_playing",
-                            QoS::AtLeastOnce,
-                            false,
-                            match sleep_sound_state {
-                                Some(false) => "on",
-                                _ => "off",
-                            },
-                        ).await.unwrap();
+                        client
+                            .publish(
+                                "homeassistant_cmd/switch/terminal1_sleepy_sounds_playing",
+                                QoS::AtLeastOnce,
+                                false,
+                                match sleep_sound_state {
+                                    Some(false) => "on",
+                                    _ => "off",
+                                },
+                            )
+                            .await
+                            .unwrap();
                     });
                 }
             });
